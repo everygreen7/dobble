@@ -91,6 +91,9 @@ td.n.dim{color:#c3bab0;font-weight:500}
 .bar .v button{border:2px solid var(--line);border-radius:999px;background:#fff;padding:3px 10px;font-weight:800;font-size:14px;cursor:pointer}
 .bar .v button.first{background:var(--sun);border-color:#e0b400}
 .bar .v button.on{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
+.bar .v button.stk{border-style:dashed;border-color:#8a807a;background:#f3eee6;color:var(--sub)}
+.bar .v button.stk.on{border-style:solid;border-color:var(--acc)}
+td .stkn{font-size:12px;color:var(--sub);font-weight:700;margin-left:4px}
 .bar .v .cnt{font-size:12px;color:var(--mute);font-weight:700;margin-left:2px}
 .bar.max .k::after{content:" ★";color:var(--gold)}
 .detail{border:2px dashed var(--acc);border-radius:14px;padding:12px;background:#fffafb;margin-top:12px}
@@ -167,7 +170,7 @@ td.n.dim{color:#c3bab0;font-weight:500}
      <div class="row" style="margin:0 0 10px;justify-content:space-between"><h2 style="margin:0">미니 도블 만들기 <span id="bCount" style="color:var(--acc)"></span></h2>
       <span class="row" style="margin:0;gap:10px"><label class="small hide-big"><input type="checkbox" id="showMax"> 최대 장수 보이기</label><button class="btn pri fbig" id="fvOpen">⛶ 크게 띄우기</button></span></div>
      <div class="ptabs" id="bTabs"></div>
-     <p class="small" style="margin:8px 0 0">학생마다 <b>가장 많이 만든 장수</b>에 이름이 놓여요. 🟡 = 그 장수를 처음 만든 학생. 이름을 누르면 그 학생의 카드가 보여요.</p>
+     <p class="small" style="margin:8px 0 0">학생마다 <b>가장 많이 만든 장수</b>에 이름이 놓여요. 🟡 = 그 장수를 처음 만든 학생. <b>🧱 막힘</b>(점선) = [더 만들 수 없어요?]로 확인한, 더 붙일 수 없는 장수. 이름을 누르면 그 카드가 보여요.</p>
      <div class="bars" id="bBars"></div>
      <div class="detail" id="bDetail" hidden></div>
     </div>
@@ -182,7 +185,7 @@ td.n.dim{color:#c3bab0;font-weight:500}
     <div class="card hide-big"><h2>도움말</h2>
      <p class="act" style="line-height:1.7;margin:0">· 학생 주소는 이 주소에서 <b>/teacher</b>(또는 <b>teacher.html</b>, <b>?view=teacher</b>)를 뺀 것이에요.<br>
       · <b>스피드 체험</b>: 점수 없이 찾은 개수만 세요. 순위를 겨루려면 카드를 하나로 정해서(예: 그림 8개) 시작하세요. '학생이 고르기'면 그림 3·4·8개를 섞어 센 합계예요. 학생은 [모든 카드 보기]에서 두 카드의 같은 그림, 그림 하나가 든 카드를 확인할 수 있어요.<br>
-      · <b>미니 도블 만들기</b>: 규칙에 맞는 카드만 쌓여요. 결과판은 ⛶ 크게 띄우기로 프로젝터에 띄워요. '최대 장수 보이기'는 교사 화면에만 보여요.<br>
+      · <b>미니 도블 만들기</b>: 규칙에 맞는 카드만 쌓여요. 학생이 [더 만들 수 없어요?]로 정말 막힌 것을 확인하면 결과판에 🧱 막힘이 올라가요(그림 9개는 4장에서도 막혀요 — 막혔다고 최대는 아니에요). 결과판은 ⛶ 크게 띄우기로 프로젝터에 띄워요. '최대 장수 보이기'는 교사 화면에만 보여요.<br>
       · <b>빠진 카드 찾기</b>: 모드에서 <b>연습</b>을 고르면 실전 바로 전에 해 볼 3문제(빈칸 2개 · 빠진 카드 1장 · 빠진 카드 2장)가 열려요. 점수가 없고 힌트도 감점 없이 마음껏 써요. 표에서 문제마다 ✓를 보고 실전으로 넘어가세요.<br>
       · <b>실전</b>: 1문제 10점, 힌트 1번에 −3점(문제당 2번까지). 힌트는 맞는 그림 하나를 채워 줘요(빈칸이 없으면 틀린 그림 하나를 바꿔요).<br>
       · 모든 기록은 구글 시트의 <b>기록</b>, <b>순위</b> 탭에 남아요.</p>
@@ -229,7 +232,7 @@ const GNOTE={speed:'이 활동은 연습만 있어요. 두 카드의 같은 그�
  real_practice:'실전 바로 전에 3문제(빈칸 2개 · 빠진 카드 1장 · 빠진 카드 2장) · 점수 없음 · 힌트 감점 없음',real_real:'모두 같은 8문제 · 도착한 번호까지만 열림 · 점수와 순위 기록'};
 const GMIN={speed:6,build:8,real_practice:3,real_real:12};   // 슬라이드 타이머와 같은 시간
 const DN={d3:'그림 3개',d4:'그림 4개',d8:'그림 8개'};
-const T={pw:'',game:'speed',mode:'practice',deck:'free',view:'',data:null,offset:0,timer:null,pool:7,who:null,bank:null};
+const T={pw:'',game:'speed',mode:'practice',deck:'free',whoStuck:null,view:'',data:null,offset:0,timer:null,pool:7,who:null,bank:null};
 try{T.pw=sessionStorage.getItem('dobble_pw')||''}catch(e){}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 
@@ -252,7 +255,7 @@ document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{$('mins').value=
 setGame();
 
 async function ctl(action,opt){$('msg').textContent='';
- try{await call('api_t_control',T.pw,action,opt||{});T.view='';T.who=null;await refresh()}catch(e){$('msg').textContent=errText(e)}}
+ try{await call('api_t_control',T.pw,action,opt||{});T.view='';T.who=null;T.whoStuck=null;await refresh()}catch(e){$('msg').textContent=errText(e)}}
 $('startBtn').onclick=()=>ctl('start',{game:T.game,mode:T.mode,minutes:+$('mins').value,deck:T.deck});
 $('pauseBtn').onclick=()=>ctl(T.data&&T.data.state.status==='paused'?'resume':'pause');
 $('addBtn').onclick=()=>ctl('addtime',{minutes:1});
@@ -264,7 +267,7 @@ function bindDanger(){
  if($('resetBtn'))$('resetBtn').onclick=()=>confirmIn('resetWrap','학생·기록 현황을 모두 지울까요? (시트 기록은 남아요)',()=>ctl('reset'));
 }
 bindDanger();
-$('roundSel').onchange=()=>{T.view=$('roundSel').value;T.who=null;refresh()};
+$('roundSel').onchange=()=>{T.view=$('roundSel').value;T.who=null;T.whoStuck=null;refresh()};
 $('bigBtn').onclick=()=>{document.body.classList.toggle('big');$('bigBtn').textContent=document.body.classList.contains('big')?'작게 보기':'크게 보기'};
 $('showMax').onchange=()=>T.data&&drawBuild(T.data.build);
 
@@ -304,19 +307,24 @@ const bpic=i=>T.bank.build.pics[i];
 /* ═════ 미니 도블 만들기 결과판 ═════ */
 function tabsHtml(b){return b.order.map(p=>{const P=b.pools[p];return `<button class="btn${p===T.pool?' on':''}" data-p="${p}">그림 ${p}개 · ${P.list.length}명${P.best?' · 최고 '+P.best+'장':''}</button>`}).join('')}
 function barsHtml(b,showMax,known){
- const P=b.pools[T.pool],by={};P.list.forEach(x=>{(by[x.n]=by[x.n]||[]).push(x)});
+ const P=b.pools[T.pool],by={},sk={};P.list.forEach(x=>{(by[x.n]=by[x.n]||[]).push(x)});(P.stuck||[]).forEach(x=>{(sk[x.n]=sk[x.n]||[]).push(x)});
  const top=Math.max(P.best||0,showMax?P.max:0,3);let h='';
- for(let n=top;n>=1;n--){const w=by[n]||[];
+ for(let n=top;n>=1;n--){const w=by[n]||[],st=sk[n]||[];
   h+=`<div class="bar${showMax&&n===P.max?' max':''}"><span class="k${n===P.best?' top':''}">${n}장</span><div class="v">${w.map(x=>{const isNew=known&&!known.has(T.pool+':'+x.name+':'+x.n);
-   return `<button class="${x.name===P.first&&n===P.best?'first':''}${T.who===x.name?' on':''}${isNew?' new':''}" data-w="${esc(x.name)}">${esc(x.name)}</button>`}).join('')}${w.length?`<span class="cnt">${w.length}명</span>`:''}</div></div>`}
+   return `<button class="${x.name===P.first&&n===P.best?'first':''}${T.who===x.name&&T.whoStuck===null?' on':''}${isNew?' new':''}" data-w="${esc(x.name)}">${esc(x.name)}</button>`}).join('')}${w.length?`<span class="cnt">${w.length}명</span>`:''}`+
+   st.map(x=>{const isNew=known&&!known.has('s'+T.pool+':'+x.name+':'+x.n);return `<button class="stk${T.who===x.name&&T.whoStuck===n?' on':''}${isNew?' new':''}" data-w="${esc(x.name)}" data-s="${n}">🧱 ${esc(x.name)} · 막힘</button>`}).join('')+`</div></div>`}
  return h}
 function detailHtml(b,size){
- const P=b.pools[T.pool];const x=P.list.find(y=>y.name===T.who)||P.list[0];
+ const P=b.pools[T.pool];
+ if(T.whoStuck!==null){const y=(P.stuck||[]).find(z=>z.name===T.who&&z.n===T.whoStuck);
+  if(y)return `<h3>🧱 ${esc(y.name)}이(가) 막힌 카드 ${y.n}장</h3><p class="small">이 카드들에는 규칙에 맞게 더 붙일 수 있는 카드가 없어요.</p><div class="cards">${y.cards.map((c,i)=>cardHtml(c.map(bpic),size,i+1)).join('')}</div>`}
+ const x=P.list.find(y=>y.name===T.who)||P.list[0];
  if(!x)return '<h3>아직 기록이 없어요</h3><p class="small">학생이 카드를 만들면 여기에 모여요.</p>';
  return `<h3>${esc(x.name)}의 카드 ${x.n}장${x.name===P.first&&x.n===P.best?' 🥇':''}</h3><div class="cards">${x.cards.map((c,i)=>cardHtml(c.map(bpic),size,i+1)).join('')}</div>`}
 function bindBuild(root){
- root.querySelectorAll('.ptabs .btn').forEach(b=>b.onclick=()=>{T.pool=+b.dataset.p;T.who=null;draw(T.data)});
- root.querySelectorAll('.bar .v button').forEach(b=>b.onclick=()=>{T.who=T.who===b.dataset.w?null:b.dataset.w;draw(T.data)})}
+ root.querySelectorAll('.ptabs .btn').forEach(b=>b.onclick=()=>{T.pool=+b.dataset.p;T.who=null;T.whoStuck=null;draw(T.data)});
+ root.querySelectorAll('.bar .v button').forEach(b=>b.onclick=()=>{const w=b.dataset.w,sn=b.dataset.s?+b.dataset.s:null;
+  if(T.who===w&&T.whoStuck===sn){T.who=null;T.whoStuck=null}else{T.who=w;T.whoStuck=sn}draw(T.data)})}
 function drawBuild(b){
  const P=b.pools[T.pool];
  $('bCount').textContent=P.best?'그림 '+T.pool+'개 · 반 최고 '+P.best+'장':'';
@@ -342,7 +350,7 @@ function drawTable(d,rd){
   else if(prac)h+=`<tr><td></td>${nm}<td class="n">${x.solved}/${d.puzzleCount}</td>${Array.from({length:d.puzzleCount},(_,k)=>`<td class="n">${x.done&&x.done[k]?'<span class="ok-mark">✓</span>':'<span style="color:#cfc6b8">·</span>'}</td>`).join('')}<td class="n">${x.hints||0}</td>${act}${kick}</tr>`;
   else if(g==='speed')h+=`<tr><td><span class="rk ${x.solved>0&&rank<=3?'r'+rank:''}">${rank}</span></td>${nm}<td class="n" style="color:var(--acc);font-size:18px">${x.solved}</td>${nn(x.sp.d3)}${nn(x.sp.d4)}${nn(x.sp.d8)}${act}${kick}</tr>`;
   else if(g==='build'){const fs=d.build?pools.filter(p=>d.build.pools[p].first===x.name&&x.bb[p]===d.build.pools[p].best):[];
-   h+=`<tr><td></td>${nm}${pools.map(p=>nn(x.bb[p]?x.bb[p]+'장':0)).join('')}<td class="n">${fs.length?'🟡 '+fs.map(p=>p+'개').join('·'):''}</td>${act}${kick}</tr>`}
+   h+=`<tr><td></td>${nm}${pools.map(p=>x.bb[p]||(x.st&&x.st[p])?`<td class="n">${x.bb[p]?x.bb[p]+'장':'0'}${x.st&&x.st[p]&&x.st[p].length?`<span class="stkn">🧱${x.st[p].join('·')}</span>`:''}</td>`:nn(0)).join('')}<td class="n">${fs.length?'🟡 '+fs.map(p=>p+'개').join('·'):''}</td>${act}${kick}</tr>`}
   else h+=`<tr><td></td>${nm}${act}${kick}</tr>`});
  $('tbl').innerHTML=h;
  $('tbl').querySelectorAll('.x').forEach(b=>b.onclick=()=>{const n=b.dataset.k;b.outerHTML=`<span class="confirm">내보낼까요? <button class="btn danger" style="padding:4px 8px">예</button></span>`;
@@ -365,9 +373,10 @@ function drawFV(d){
  if(!b){$('fvBars').innerHTML='<p class="empty" style="font-size:28px">지금은 미니 도블 만들기 활동이 아니에요.</p>';$('fvDetail').innerHTML='';$('fvTabs').innerHTML='';$('fvTitle').textContent='';return}
  const P=b.pools[T.pool];$('fvTitle').textContent='그림 '+T.pool+'개'+(P.best?' · 최고 '+P.best+'장':'');
  $('fvTabs').innerHTML=tabsHtml(b);$('fvBars').innerHTML=barsHtml(b,$('fvMax').checked,FV.known);
- const now=new Set();Object.keys(b.pools).forEach(p=>b.pools[p].list.forEach(x=>now.add(p+':'+x.name+':'+x.n)));FV.known=now;
+ const now=new Set();Object.keys(b.pools).forEach(p=>{b.pools[p].list.forEach(x=>now.add(p+':'+x.name+':'+x.n));(b.pools[p].stuck||[]).forEach(x=>now.add('s'+p+':'+x.name+':'+x.n))});FV.known=now;
  const wide=innerWidth>1000,availW=wide?(innerWidth-68-26)*0.52:innerWidth-68;
- const x=P.list.find(y=>y.name===T.who)||P.list[0],n=x?x.n:1,cols=Math.min(n,n>4?4:n),rows=Math.ceil(n/cols);
+ const sx=T.whoStuck!==null?(P.stuck||[]).find(z=>z.name===T.who&&z.n===T.whoStuck):null;
+ const x=sx||P.list.find(y=>y.name===T.who)||P.list[0],n=x?x.n:1,cols=Math.min(n,n>4?4:n),rows=Math.ceil(n/cols);
  const sz=Math.max(70,Math.min(170,Math.floor((availW-30-(cols-1)*12)/cols),Math.floor((innerHeight-250-rows*12)/rows)));
  $('fvDetail').innerHTML=detailHtml(b,sz);
  bindBuild($('fv'));

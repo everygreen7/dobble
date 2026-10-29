@@ -205,7 +205,7 @@ function josa(w,a,b){const c=w.charCodeAt(w.length-1);if(c<0xAC00||c>0xD7A3)retu
 const A={name:null,token:null,bank:null,offset:0,state:{status:'idle'},me:null,round:null,game:null,mode:null,
  busy:false,pollT:null,activity:'대기',cls:{},
  sp:{deck:'d8',view:'speed',pair:null,lock:false,count:0,streak:0,queue:[],sending:false,sel:[],mark:null},
- bd:{pool:7,cards:{},best:{},cur:[],sel:null},
+ bd:{pool:7,cards:{},best:{},stuck:{},cur:[],sel:null},
  real:{cur:0,saved:{},seen:{}}};
 const DN={d3:'그림 3개',d4:'그림 4개',d8:'그림 8개'};
 
@@ -273,8 +273,9 @@ const canPlay=()=>A.state.status==='running';
 async function startRound(s){
  A.round=s.roundId;A.mode=s.mode;A.game=s.game;A.zeroed=false;A.real={cur:0,saved:{},seen:{}};R_=null;
  A.sp.count=0;A.sp.streak=0;A.sp.queue=[];A.sp.view='speed';A.sp.sel=[];A.sp.mark=null;
- A.bd.cards={};A.bd.best={};A.bd.cur=[];A.bd.sel=null;A.cls={};
- if(s.game==='build'){try{const ms=await call('api_mystate',A.name,A.token);if(ms&&ms.build)Object.keys(ms.build).forEach(p=>{A.bd.cards[p]=ms.build[p].cards.map(c=>c.slice());A.bd.best[p]=ms.build[p].n})}catch(e){}}
+ A.bd.cards={};A.bd.best={};A.bd.stuck={};A.bd.cur=[];A.bd.sel=null;A.cls={};
+ if(s.game==='build'){try{const ms=await call('api_mystate',A.name,A.token);if(ms&&ms.build)Object.keys(ms.build).forEach(p=>{A.bd.cards[p]=ms.build[p].cards.map(c=>c.slice());A.bd.best[p]=ms.build[p].n});
+  if(ms&&ms.stuck)Object.keys(ms.stuck).forEach(p=>{A.bd.stuck[p]=ms.stuck[p].map(x=>x.n)})}catch(e){}}
  show('game');
  ['deckTabs','viewTabs','poolTabs','nums'].forEach(x=>$(x).hidden=true);
  if(s.game==='speed')openSpeed();else if(s.game==='build')openBuild(A.bd.pool);else openReal(firstOpen());
@@ -427,6 +428,7 @@ function drawBuild(){
  let h=`<div class="mk">${cardHtml([0,1,2].map(j=>cur[j]===undefined?null:bpic(cur[j])),big,{id:'new',cls:'blank',slotCls:(j,p)=>p!==null?' fill':(j===cur.length?' next':'')})}<div style="text-align:left;font-size:14px;color:var(--sub);line-height:1.6;max-width:150px">새 카드<br><b style="color:var(--ink)">${cur.length}/3</b> 골랐어요<br>그림을 다시 누르면 빠져요</div></div>`;
  h+=`<div class="pal" id="bPal">${Array.from({length:pool},(_,i)=>`<button class="pb${cur.indexOf(i)>=0?' on':''}" data-i="${i}" aria-label="${PIC(bpic(i)).n}">${PIC(bpic(i)).e}${cnt[i]?`<small>${cnt[i]}</small>`:''}</button>`).join('')}</div>`;
  h+=`<div class="stat3"><div><b>${cards.length}</b><span>지금 카드</span></div><div><b>${A.bd.best[pool]||0}</b><span>내 최고</span></div><div><b id="clsBest">${A.cls[pool]||0}</b><span>우리 반 최고</span></div></div>`;
+ if((A.bd.stuck[pool]||[]).length)h+=`<p class="note" style="margin:2px 0 0">🧱 내가 막힌 기록: ${A.bd.stuck[pool].map(x=>x+'장').join(', ')}</p>`;
  h+=`<div class="sec">내 카드 ${cards.length}장 <span class="note" style="font-size:12px">카드를 누르면 뺄 수 있어요 · 그림 위 숫자 = 쓴 횟수</span></div><div class="mylist" id="bList">`;
  const sz=Math.min(92,Math.floor((w-30)/4));
  cards.forEach((c,i)=>{h+=cardHtml(c.map(bpic),sz,{id:i,no:i+1,cls:(A.bd.sel===i?'sel':'')+(A.bd.bad===i?' bad':'')})});
@@ -438,22 +440,37 @@ function drawBuild(){
  $('stage').querySelectorAll('.dc[data-c="new"] .p').forEach(b=>b.onclick=()=>{const j=+b.dataset.i;if(A.bd.cur[j]!==undefined){A.bd.cur.splice(j,1);drawBuild()}});
  $('bList').querySelectorAll('.dc').forEach(c=>c.onclick=()=>{const i=+c.dataset.c;A.bd.sel=A.bd.sel===i?null:i;A.bd.bad=null;drawBuild();if(A.bd.sel!==null)setMsg((i+1)+'번 카드를 골랐어요. [이 카드 빼기]를 누르면 빠져요.')});
  $('ctrl').innerHTML=`<button class="btn pri" id="bAdd"${cur.length===3?'':' disabled'}>＋ 카드 추가</button><button class="btn" id="bClr">새 카드 비우기</button>`+
-  (A.bd.sel!==null?`<button class="btn wide" id="bDel">${A.bd.sel+1}번 카드 빼기</button>`:'')+`<button class="btn wide" id="bAll">카드 모두 지우기</button>`;
- $('bAdd').onclick=addCard;$('bClr').onclick=()=>{A.bd.cur=[];drawBuild()};
+  (A.bd.sel!==null?`<button class="btn wide" id="bDel">${A.bd.sel+1}번 카드 빼기</button>`:'')+
+  `<button class="btn wide" id="bStuck"${cards.length?'':' disabled'}>🤔 더 만들 수 없어요?<span class="hintc">확인만 해요 · 눌러도 카드는 그대로, 계속 만들 수 있어요</span></button>`+
+  `<button class="btn wide" id="bAll">카드 모두 지우기</button>`;
+ $('bAdd').onclick=addCard;$('bClr').onclick=()=>{A.bd.cur=[];drawBuild()};$('bStuck').onclick=checkStuck;
  if($('bDel'))$('bDel').onclick=()=>{cards.splice(A.bd.sel,1);A.bd.sel=null;setMsg('카드를 뺐어요.');drawBuild()};
  $('bAll').onclick=()=>{if(!cards.length)return;$('bAll').outerHTML='<span class="wide" style="grid-column:1/-1;display:flex;gap:6px"><button class="btn" id="bAllY" style="flex:1">모두 지우기</button><button class="btn" id="bAllN" style="flex:1">취소</button></span>';
   $('bAllY').onclick=()=>{A.bd.cards[pool]=[];A.bd.sel=null;setMsg('모두 지웠어요. 기록(내 최고)은 남아 있어요.');drawBuild()};$('bAllN').onclick=drawBuild};
  $('gnote').textContent='더 만들 수 없을 것 같으면 다른 그림 수로도 해 봐요. 그림을 늘리면 카드도 늘어날까요?';
 }
 function drawBuildStats(){const e=$('clsBest');if(e)e.textContent=A.cls[A.bd.pool]||0}
+/* 지금 카드들에 규칙에 맞게 더 붙일 수 있는 카드가 있는지 모든 경우를 따져 봐요 (어떤 카드인지는 알려 주지 않아요) */
+function canExtend(pool,cards){for(let a=0;a<pool;a++)for(let b=a+1;b<pool;b++)for(let c=b+1;c<pool;c++){const t=[a,b,c];if(cards.every(x=>t.filter(v=>x.indexOf(v)>=0).length===1))return true}return false}
+async function checkStuck(){
+ if(A.busy)return;const pool=A.bd.pool,cards=A.bd.cards[pool];if(!cards.length)return;
+ if(!canPlay()){setMsg('지금은 확인할 수 없어요.','bad');return}
+ if(canExtend(pool,cards)){setMsg('아직 붙일 수 있는 카드가 있어요. 더 찾아봐요! 🔍','bad');return}
+ A.busy=true;
+ try{const r=await call('api_stuck',A.name,A.token,{roundId:A.round,pool,cards});A.bd.stuck[pool]=r.stuck;
+  drawBuild();
+  setMsg('맞아요! 이 '+cards.length+'장에는 더 붙일 수 없어요. 처음부터 다르게 만들면 더 많이 만들 수 있을까요?','ok')}
+ catch(e){setMsg(errText(e),'bad')}finally{A.busy=false}
+}
 async function addCard(){
  if(A.busy||A.bd.cur.length!==3)return;if(!canPlay()){setMsg('지금은 만들 수 없어요.','bad');return}
  const pool=A.bd.pool,cards=A.bd.cards[pool],nc=A.bd.cur.slice().sort((a,b)=>a-b);
  for(let i=0;i<cards.length;i++){const same=cards[i].filter(x=>nc.indexOf(x)>=0).length;
   if(same!==1){A.bd.bad=i;drawBuild();setMsg(same===0?(i+1)+'번 카드와 같은 그림이 없어요. 꼭 1개 있어야 해요.':(same===3?(i+1)+'번 카드와 똑같은 카드예요.':(i+1)+'번 카드와 같은 그림이 '+same+'개예요. 꼭 1개여야 해요.'),'bad');return}}
  cards.push(nc);A.bd.cur=[];A.bd.sel=null;A.bd.bad=null;
- const n=cards.length;setMsg('카드 '+n+'장! 한 장 더 만들 수 있을까요?','ok');drawBuild();
- if(n>(A.bd.best[pool]||0)){A.bd.best[pool]=n;
+ const n=cards.length,isBest=n>(A.bd.best[pool]||0);if(isBest)A.bd.best[pool]=n;   // '내 최고'가 바로 보이게 먼저 바꿔요
+ setMsg('카드 '+n+'장! 한 장 더 만들 수 있을까요?','ok');drawBuild();
+ if(isBest){
   try{A.busy=true;const r=await call('api_build',A.name,A.token,{roundId:A.round,pool,cards});
    if(r.classBest)A.cls[pool]=n;   // 알림은 띄우지 않고 '우리 반 최고' 칸만 조용히 바뀌어요
    openBuildTabsOnly();drawBuildStats()}
