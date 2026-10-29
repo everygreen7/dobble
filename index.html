@@ -291,25 +291,50 @@ async function loadHistory(){
  box.innerHTML='<h3>내 기록</h3>'+h.map(x=>{let b='';
   if(x.speed){const s=x.speed,t=(s.d3||0)+(s.d4||0)+(s.d8||0);b+=`<div class="hl">⚡ 같은 그림 <em>${t}번</em> 찾음</div><div class="chips">${['d3','d4','d8'].filter(d=>s[d]).map(d=>`<span>${DN[d]} ${s[d]}번</span>`).join('')}</div>`}
   if(x.build)b+=`<div class="hl">🃏 가장 많이 만든 카드${x.first&&x.first.length?` · 반 최고 기록 <em>${x.first.map(p=>'그림 '+p+'개').join(', ')}</em>`:''}</div><div class="chips">${Object.keys(x.build).map(p=>`<span>그림 ${p}개 → ${x.build[p]}장</span>`).join('')}</div>`;
+  if(x.prac)b+=`<div class="hl">✏️ 연습 성공 <em>${x.prac.solved}/${x.prac.total}</em>${x.prac.hints?` · 힌트 ${x.prac.hints}번`:''}</div>`;
   if(x.real)b+=`<div class="hl">🏁 점수 <em>${x.real.score}점</em> · 성공 ${x.real.solved}/${x.real.total}${x.real.hints?` · 힌트 ${x.real.hints}번`:''}</div>`;
   return `<div class="hc"><div class="ht"><b>${x.label}</b><span>${tm(x.at)}</span></div>${b}</div>`}).join('');
  box.hidden=false;
 }
 
 /* ═════════ 도블 카드 그리기 ═════════
-   pics: 그림 번호 목록(null = 빈칸) · size: 지름(px) · o: {id, no, mix(크기·방향 섞기), cls, slotCls(i)} */
+   pics: 그림 번호 목록(null = 빈칸) · size: 지름(px) · o: {id, no, lay(섞은 배치), rot(카드 전체 회전), cls, slotCls(i)} */
 const PIC=i=>A.bank.pics[i];
 function layout(k){
  if(k===3)return[[0,-.42],[.38,.24],[-.38,.24]].map(p=>p.concat(.36));
  if(k===4)return[[-.3,-.3],[.3,-.3],[-.3,.3],[.3,.3]].map(p=>p.concat(.32));
  const o=[[0,0,.27]];for(let j=0;j<k-1;j++){const a=-Math.PI/2+j*2*Math.PI/(k-1);o.push([Math.cos(a)*.6,Math.sin(a)*.6,.26])}return o}
 function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+/* 씨앗이 같으면 늘 같은 수열 (mulberry32) */
+function rng(seed){return function(){seed=(seed+0x6D2B79F5)|0;let t=Math.imul(seed^(seed>>>15),1|seed);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296}}
+/* 스피드 카드의 섞은 배치: 카드마다 한 번 정해서 기억(인쇄된 카드처럼 같은 카드는 늘 같은 모양).
+   그림 8개: 크기를 크게·중간·작게 섞어 겹치지 않게 아무 자리에, 방향은 0~360°.
+   그림 3·4개: 자리는 거의 그대로, 크기·방향만 섞기.
+   돌려주는 값: [[x, y, 크기, 방향], …] — x·y는 반지름 단위(−1~1), 크기는 지름에 대한 비율 */
+const LAY={},SIZES8=[.32,.29,.27,.25,.23,.21,.19,.18],MIN_S=.17;
+function scatter(key,k){
+ if(LAY[key])return LAY[key];
+ const R=rng(hash(key)),out=[];
+ if(k<=4){const f=[.84,1,1.14,1.07].slice(0,k);for(let i=f.length-1;i>0;i--){const j=Math.floor(R()*(i+1));[f[i],f[j]]=[f[j],f[i]]}   // 작게·보통·크게를 섞어서
+  layout(k).forEach(([x,y,s],i)=>out.push([x+(R()-.5)*.12,y+(R()-.5)*.12,Math.max(MIN_S,s*(f[i]+(R()-.5)*.04)),Math.floor(R()*360)]))}
+ else{
+  const base=SIZES8.slice(0,k);while(base.length<k)base.push(MIN_S);
+  let pts=null;
+  for(let t=0;t<200&&!pts;t++){const got=[];let ok=true;
+   for(const sz of base){const r=sz/2,maxd=.47-r;let placed=false;
+    for(let q=0;q<400;q++){const a=R()*Math.PI*2,d=Math.sqrt(R())*maxd,x=Math.cos(a)*d,y=Math.sin(a)*d;
+     if(got.every(g=>Math.hypot(g.x-x,g.y-y)>=1.05*(g.r+r))){got.push({x,y,r});placed=true;break}}
+    if(!placed){ok=false;break}}
+   if(ok)pts=got}
+  if(!pts)pts=layout(k).map(([x,y,s])=>({x:x/2,y:y/2,r:s/2}));   // 만약을 위한 기본 배치
+  for(let i=pts.length-1;i>0;i--){const j=Math.floor(R()*(i+1));[pts[i],pts[j]]=[pts[j],pts[i]]}   // 어떤 그림이 큰지 섞기
+  pts.forEach(g=>out.push([g.x*2,g.y*2,g.r*2,Math.floor(R()*360)]))}
+ return LAY[key]=out}
 function cardHtml(pics,size,o){
- o=o||{};const L=layout(pics.length),R=size/2;
- let h=`<div class="dc${o.cls?' '+o.cls:''}" ${o.id!==undefined?`data-c="${o.id}"`:''} style="width:${size}px;height:${size}px" role="group" aria-label="${o.no?o.no+'번 ':''}카드">`;
- pics.forEach((p,i)=>{const[x,y,s]=L[i];let sc=1,rot=0;
-  if(o.mix){const hv=hash(o.mix+':'+i);sc=.84+(hv%31)/100;rot=(hv>>5)%70-35}
-  const d=Math.round(size*s*sc),fs=Math.round(d*.78);
+ o=o||{};const L=o.lay||layout(pics.length),R=size/2;
+ let h=`<div class="dc${o.cls?' '+o.cls:''}" ${o.id!==undefined?`data-c="${o.id}"`:''} style="width:${size}px;height:${size}px${o.rot?`;transform:rotate(${o.rot}deg)`:''}" role="group" aria-label="${o.no?o.no+'번 ':''}카드">`;
+ pics.forEach((p,i)=>{const[x,y,s]=L[i];const rot=L[i][3]||0;
+  const d=Math.round(size*s),fs=Math.round(d*.78);
   const cls='p'+(p===null?' slot':'')+(o.slotCls?o.slotCls(i,p):'');
   h+=`<button class="${cls}" data-i="${i}" data-p="${p===null?'':p}" style="left:${R+x*R}px;top:${R+y*R}px;width:${d}px;height:${d}px;font-size:${p===null?Math.round(d*.5):fs}px" aria-label="${p===null?'빈칸':PIC(p).n}"><i style="${rot?`transform:rotate(${rot}deg)`:''}">${p===null?'?':PIC(p).e}</i></button>`});
  if(o.no)h+=`<span class="no">${o.no}</span>`;
@@ -327,7 +352,8 @@ function openSpeed(){
  if(!A.sp.pair||A.sp.pair.d!==A.sp.deck)newPair();
  drawSpeed();
 }
-function newPair(){const n=A.bank.decks[A.sp.deck].n;let a=Math.floor(Math.random()*n),b;do{b=Math.floor(Math.random()*n)}while(b===a);A.sp.pair={d:A.sp.deck,a,b,t:Date.now()}}
+function newPair(){const n=A.bank.decks[A.sp.deck].n;let a=Math.floor(Math.random()*n),b;do{b=Math.floor(Math.random()*n)}while(b===a);
+ A.sp.pair={d:A.sp.deck,a,b,t:Date.now(),ra:Math.floor(Math.random()*360),rb:Math.floor(Math.random()*360)}}   // 볼 때마다 카드 전체도 돌림
 const deckCard=(d,i)=>A.bank.decks[d].cards[i].map(s=>A.bank.decks[d].pics[s]);
 function common(d,a,b){const B=deckCard(d,b);return deckCard(d,a).find(x=>B.indexOf(x)>=0)}
 function drawSpeed(){
@@ -336,8 +362,11 @@ function drawSpeed(){
  $('pTitle').textContent=DN[A.sp.deck]+' 카드';$('pLead').innerHTML='두 카드에 <b>똑같이 있는 그림</b>을 찾아 톡! 어느 카드에서 눌러도 돼요.';
  A.activity='스피드: '+DN[A.sp.deck]+' (찾은 '+A.sp.count+')';
  const P=A.sp.pair,sz=Math.floor(Math.min(W()-20,(window.innerHeight-(A.state.deck&&A.state.deck!=='free'?290:340))/2,340));
- $('stage').innerHTML=`<div class="duo" id="duo">${cardHtml(deckCard(P.d,P.a),Math.max(170,sz),{id:'a',mix:P.d+P.a})}<span class="vs">같은 그림은 딱 하나!</span>${cardHtml(deckCard(P.d,P.b),Math.max(170,sz),{id:'b',mix:P.d+P.b})}</div>`;
- $('stage').querySelectorAll('.dc .p').forEach(b=>b.onclick=()=>speedTap(+b.dataset.p,b));
+ $('stage').innerHTML=`<div class="duo" id="duo">${cardHtml(deckCard(P.d,P.a),Math.max(170,sz),{id:'a',lay:scatter(P.d+':'+P.a,D.k),rot:P.ra})}<span class="vs">같은 그림은 딱 하나!</span>${cardHtml(deckCard(P.d,P.b),Math.max(170,sz),{id:'b',lay:scatter(P.d+':'+P.b,D.k),rot:P.rb})}</div>`;
+ // 카드 안 아무 곳을 눌러도 가장 가까운 그림이 눌려요(작은 그림도 누르기 쉽게)
+ $('stage').querySelectorAll('.duo .dc').forEach(c=>c.onclick=e=>{const ps=[...c.querySelectorAll('.p')];let el=e.target.closest('.p');
+  if(e.clientX||e.clientY){let best=1e9;ps.forEach(q=>{const b=q.getBoundingClientRect(),dd=Math.hypot(b.left+b.width/2-e.clientX,b.top+b.height/2-e.clientY);if(dd<best){best=dd;el=q}})}
+  if(el)speedTap(+el.dataset.p,el)});
  $('ctrl').innerHTML=`<div class="stat3" style="grid-column:1/-1"><div><b id="spN">${A.sp.count}</b><span>찾은 개수</span></div><div><b id="spS">${A.sp.streak}</b><span>연속</span></div><div><b>${D.n}</b><span>이 덱의 카드 수</span></div></div>`;
  $('gnote').textContent='틀리면 1초 동안 잠겨요. 찾은 개수가 선생님 화면에 모여요.';
 }
@@ -426,17 +455,19 @@ async function addCard(){
  const n=cards.length;setMsg('카드 '+n+'장! 한 장 더 만들 수 있을까요?','ok');drawBuild();
  if(n>(A.bd.best[pool]||0)){A.bd.best[pool]=n;
   try{A.busy=true;const r=await call('api_build',A.name,A.token,{roundId:A.round,pool,cards});
-   if(r.classBest){A.cls[pool]=n;toast('반 최고 기록!','그림 '+pool+'개로 '+n+'장')}else if(!r.dup)toast('내 최고 기록!',n+'장');
+   if(r.classBest)A.cls[pool]=n;   // 알림은 띄우지 않고 '우리 반 최고' 칸만 조용히 바뀌어요
    openBuildTabsOnly();drawBuildStats()}
   catch(e){setMsg(errText(e),'bad')}finally{A.busy=false}}
 }
 function openBuildTabsOnly(){$('poolTabs').querySelectorAll('.btn').forEach(b=>{const p=+b.dataset.p;b.textContent='그림 '+p+'개'+(A.bd.best[p]?' · '+A.bd.best[p]+'장':'')})}
 
-/* ═════════ 3) 실전: 빠진 카드 찾기 ═════════ */
-const realList=()=>A.bank.real;
+/* ═════════ 3) 빠진 카드 찾기 (연습 3문제 · 실전 8문제) ═════════
+   연습: 세 문제가 모두 열려 있고, 점수가 없고, 힌트도 감점 없이 마음껏. 실전: 도착한 번호까지만, 10점, 힌트 2번까지 −3점 */
+const isPrac=()=>A.game==='real'&&A.mode==='practice';
+const realList=()=>isPrac()?A.bank.prac:A.bank.real;
 const isDone=i=>!!(A.me&&A.me.done&&A.me.done[i]);
 const hintsUsed=i=>(A.me&&A.me.hintBy&&A.me.hintBy[i])||0;
-const reachN=()=>(A.me&&A.me.reach)||0;
+const reachN=()=>isPrac()?realList().length-1:((A.me&&A.me.reach)||0);
 function firstOpen(){const R=reachN();for(let i=0;i<=R;i++)if(!isDone(i))return i;return R}
 function nextOpen(from){const R=reachN();for(let j=from+1;j<=R;j++)if(!isDone(j))return j;for(let j=0;j<from;j++)if(!isDone(j))return j;return -1}
 function drawNums(){const L=realList(),cur=A.real.cur;const R=reachN();A.real.shownReach=R;$('nums').hidden=false;
@@ -453,13 +484,13 @@ function openReal(i){
  const blanks=Object.keys(fill).map(Number);
  R_={i,q,fill,hint:sv?Object.assign({},sv.hint):{},sel:blanks[0],bad:[]};
  const solvedN=L.filter((_,k)=>isDone(k)).length;
- $('pTitle').textContent=(i+1)+'번 · '+q.title;
+ $('pTitle').textContent=(isPrac()?'연습 ':'')+(i+1)+'번 · '+q.title;
  $('pLead').innerHTML=q.kind==='miss'?`카드 <b>${blanks.length}장</b>이 빠졌어요. 노란 빈 카드를 채워 덱을 완성해요.`:`빈칸 <b>?</b>를 채워요. 어느 두 카드에도 <b>같은 그림이 꼭 하나</b>!`;
- A.activity='실전 '+(i+1)+'번 (성공 '+solvedN+'/'+L.length+')';
+ A.activity=(isPrac()?'연습 ':'실전 ')+(i+1)+'번 (성공 '+solvedN+'/'+L.length+')';
  drawNums();drawReal();
  setMsg(isDone(i)?'✓ 이미 푼 문제예요. 다른 번호를 골라요.':'노란 카드를 고르고, 아래 그림을 눌러 채워요.',isDone(i)?'ok':'');
- if(solvedN===L.length)setMsg('🎉 모든 문제를 다 풀었어요! 결과를 기다려요.','ok');
- $('gnote').textContent='다른 번호에 갔다 와도 채운 그림은 그대로예요. 노란 테두리 그림 = 힌트로 받은 그림(바꿀 수 없어요).';
+ if(solvedN===L.length)setMsg(isPrac()?'🎉 연습 문제를 다 풀었어요! 실전을 기다려요.':'🎉 모든 문제를 다 풀었어요! 결과를 기다려요.','ok');
+ $('gnote').textContent=isPrac()?'연습이라 점수가 없어요. 힌트도 감점 없이 마음껏 눌러 봐요. 실전에서는 1번에 −3점이에요.':'다른 번호에 갔다 와도 채운 그림은 그대로예요. 노란 테두리 그림 = 힌트로 받은 그림(바꿀 수 없어요).';
 }
 function saveReal(){if(R_)A.real.saved[R_.i]={fill:JSON.parse(JSON.stringify(R_.fill)),hint:Object.assign({},R_.hint)}}
 function drawReal(){
@@ -496,10 +527,10 @@ function pickReal(p){
  drawReal();setMsg(Object.keys(R_.fill).every(k=>R_.fill[k].indexOf(null)<0)?'다 채웠어요! [확인하기]를 눌러요.':'');
 }
 function drawCtrlReal(){
- if(!R_)return;const i=R_.i,u=hintsUsed(i),left=2-u,done=isDone(i),L=realList();
+ if(!R_)return;const i=R_.i,u=hintsUsed(i),left=isPrac()?1:2-u,done=isDone(i),L=realList();
  const ci=R_.sel,canClr=!done&&ci!==undefined;
  $('ctrl').innerHTML=`<button class="btn pri" id="rChk"${done?' disabled':''}>✓ 확인하기</button>`+
-  `<button class="btn" id="rHint"${left<=0||done?' disabled':''}>힌트 ${left}번<span class="hintc">1번에 −3점</span></button>`+
+  (isPrac()?`<button class="btn" id="rHint"${done?' disabled':''}>💡 힌트<span class="hintc">연습은 감점 없음</span></button>`:`<button class="btn" id="rHint"${left<=0||done?' disabled':''}>힌트 ${left}번<span class="hintc">1번에 −3점</span></button>`)+
   `<button class="btn" id="rClr"${canClr?'':' disabled'}>${ci!==undefined?(ci+1)+'번 카드 ':''}지우기</button>`+
   `<button class="btn" id="rNext">${i===reachN()&&i<L.length-1&&!done?'넘어가기 →':'다음 문제 →'}</button>`;
  $('rChk').onclick=checkReal;$('rHint').onclick=realHint;$('rNext').onclick=()=>goNext(i);
@@ -514,7 +545,7 @@ async function checkReal(){
   if(s!==1){R_.bad=[a,b];drawReal();setMsg('아직 아니에요! '+(a+1)+'번과 '+(b+1)+'번 카드에 같은 그림이 '+s+'개예요. 꼭 1개여야 해요.','bad');return}}
  A.busy=true;setMsg('확인하는 중…');const i=R_.i;
  try{const r=await call('api_submit',A.name,A.token,{roundId:A.round,puzzle:i,fills:R_.fill});
-  A.me=r.me;saveReal();updTop();toast('+'+r.points+'점',r.hints?('힌트 '+r.hints+'번 사용'):'덱 완성!');drawNums();drawReal();
+  A.me=r.me;saveReal();updTop();if(r.prac)toast('성공!','연습 '+(i+1)+'번 덱 완성');else toast('+'+r.points+'점',r.hints?('힌트 '+r.hints+'번 사용'):'덱 완성!');drawNums();drawReal();
   setTimeout(()=>{A.busy=false;if(A.game!=='real')return;const j=nextOpen(i);openReal(j>=0?j:i)},1200);
  }catch(e){A.busy=false;setMsg(errText(e),'bad')}
 }
@@ -526,7 +557,7 @@ async function realHint(){
   // 같은 그림이 이 카드의 다른 칸에 있었다면 그 칸은 비운다
   const dup=R_.fill[r.card].indexOf(r.pic);if(dup>=0&&dup!==r.slot&&!R_.hint[r.card+':'+dup])R_.fill[r.card][dup]=null;
   R_.fill[r.card][r.slot]=r.pic;R_.hint[r.card+':'+r.slot]=1;R_.sel=r.card;R_.bad=[];saveReal();drawReal();
-  setMsg('힌트: '+(r.card+1)+'번 카드에 '+PIC(r.pic).e+' '+PIC(r.pic).n+(old!==null&&old!==undefined?' ('+PIC(old).n+' 대신)':'')+' · 이 문제 −'+(3*r.used)+'점');
+  setMsg('힌트: '+(r.card+1)+'번 카드에 '+PIC(r.pic).e+' '+PIC(r.pic).n+(old!==null&&old!==undefined?' ('+PIC(old).n+' 대신)':'')+(r.prac?' · 연습이라 감점 없어요':' · 이 문제 −'+(3*r.used)+'점'));
  }catch(e){A.busy=false;setMsg(errText(e),'bad');drawCtrlReal()}
 }
 async function goNext(i){

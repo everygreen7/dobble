@@ -39,6 +39,13 @@ h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 10px}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
 .lab{font-weight:700;color:var(--sub);font-size:14px;min-width:64px}
 .seg{display:inline-flex;flex-wrap:wrap;gap:6px}.seg .btn{padding:6px 12px;font-size:14px;border-width:2px}
+/* 모드 토글 (1차시와 같은 모양): 고른 쪽이 검은색, 고를 수 없는 쪽은 흐리게 */
+.mseg{display:inline-flex;border:2.5px solid var(--ink);border-radius:14px;overflow:hidden;background:#fff}
+.mseg button{border:0;background:#fff;font-size:16px;font-weight:800;padding:10px 22px;cursor:pointer;color:var(--ink)}
+.mseg button.on{background:var(--ink);color:#fff}
+.mseg button:disabled{color:#b9b0a3;cursor:not-allowed;background:#fff}
+.mseg button:focus-visible{outline:3px solid var(--teal);outline-offset:-3px}
+.ok-mark{color:var(--ok);font-weight:900;font-size:18px}
 .num{width:70px;font-size:20px;font-weight:800;text-align:center;border:2.5px solid var(--ink);border-radius:12px;padding:6px}
 .live{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
 .clock{font:400 64px/1 var(--display);font-variant-numeric:tabular-nums}
@@ -134,9 +141,9 @@ td.n.dim{color:#c3bab0;font-weight:500}
      <div class="games" id="games">
       <button class="g on" data-g="speed"><b>스피드 체험</b><span>같은 그림 찾기 · 모든 카드 보기 · 연습</span></button>
       <button class="g" data-g="build"><b>미니 도블 만들기</b><span>그림 6·7·9개로 카드 만들기 · 연습(협동)</span></button>
-      <button class="g" data-g="real"><b>실전 대회</b><span>빠진 카드 찾기 8문제 · 점수와 순위</span></button>
+      <button class="g" data-g="real"><b>빠진 카드 찾기</b><span>연습(3문제) / 실전(8문제 · 점수)</span></button>
      </div>
-     <div class="row"><span class="lab">모드</span><span class="badge prac" id="modeBadge">연습</span><span class="act" id="modeNote"></span></div>
+     <div class="row"><span class="lab">모드</span><span class="mseg" id="modeSeg"><button data-m="practice" class="on">연습</button><button data-m="real">실전 (점수)</button></span><span class="act" id="modeNote"></span></div>
      <div class="row" id="deckRow"><span class="lab">카드</span><span class="seg" id="deckSeg">
       <button class="btn on" data-k="free">학생이 고르기</button><button class="btn" data-k="d3">그림 3개</button><button class="btn" data-k="d4">그림 4개</button><button class="btn" data-k="d8">그림 8개</button></span></div>
      <div class="row"><span class="lab">시간</span>
@@ -176,6 +183,7 @@ td.n.dim{color:#c3bab0;font-weight:500}
      <p class="act" style="line-height:1.7;margin:0">· 학생 주소는 이 주소에서 <b>/teacher</b>(또는 <b>teacher.html</b>, <b>?view=teacher</b>)를 뺀 것이에요.<br>
       · <b>스피드 체험</b>: 점수 없이 찾은 개수만 세요. 순위를 겨루려면 카드를 하나로 정해서(예: 그림 8개) 시작하세요. '학생이 고르기'면 그림 3·4·8개를 섞어 센 합계예요. 학생은 [모든 카드 보기]에서 두 카드의 같은 그림, 그림 하나가 든 카드를 확인할 수 있어요.<br>
       · <b>미니 도블 만들기</b>: 규칙에 맞는 카드만 쌓여요. 결과판은 ⛶ 크게 띄우기로 프로젝터에 띄워요. '최대 장수 보이기'는 교사 화면에만 보여요.<br>
+      · <b>빠진 카드 찾기</b>: 모드에서 <b>연습</b>을 고르면 실전 바로 전에 해 볼 3문제(빈칸 2개 · 빠진 카드 1장 · 빠진 카드 2장)가 열려요. 점수가 없고 힌트도 감점 없이 마음껏 써요. 표에서 문제마다 ✓를 보고 실전으로 넘어가세요.<br>
       · <b>실전</b>: 1문제 10점, 힌트 1번에 −3점(문제당 2번까지). 힌트는 맞는 그림 하나를 채워 줘요(빈칸이 없으면 틀린 그림 하나를 바꿔요).<br>
       · 모든 기록은 구글 시트의 <b>기록</b>, <b>순위</b> 탭에 남아요.</p>
      <div class="row"><span id="resetWrap"><button class="btn danger" id="resetBtn">모두 초기화 (새 반 시작)</button></span></div>
@@ -216,11 +224,12 @@ function call(fn){const args=[].slice.call(arguments,1);
 
 const $=id=>document.getElementById(id);
 const errText=e=>String((e&&e.message)||e).replace(/^(Error|Exception):\s*/,'');
-const GN={speed:'스피드 체험',build:'미니 도블 만들기',real:'실전 대회'};
-const GNOTE={speed:'두 카드의 같은 그림 찾기 · 찾은 개수만 세요(점수 없음)',build:'그림 6·7·9개로 규칙에 맞는 카드를 몇 장까지 만드는지 반 전체가 모아요',real:'모두 같은 8문제 · 도착한 번호까지만 열림 · 점수와 순위 기록'};
-const GMIN={speed:8,build:13,real:15};
+const GN={speed:'스피드 체험',build:'미니 도블 만들기',real:'빠진 카드 찾기'};
+const GNOTE={speed:'이 활동은 연습만 있어요. 두 카드의 같은 그림 찾기 · 찾은 개수만 세요',build:'이 활동은 연습만 있어요. 그림 6·7·9개로 카드를 몇 장까지 만드는지 반 전체가 모아요',
+ real_practice:'실전 바로 전에 3문제(빈칸 2개 · 빠진 카드 1장 · 빠진 카드 2장) · 점수 없음 · 힌트 감점 없음',real_real:'모두 같은 8문제 · 도착한 번호까지만 열림 · 점수와 순위 기록'};
+const GMIN={speed:6,build:8,real_practice:3,real_real:12};   // 슬라이드 타이머와 같은 시간
 const DN={d3:'그림 3개',d4:'그림 4개',d8:'그림 8개'};
-const T={pw:'',game:'speed',deck:'free',view:'',data:null,offset:0,timer:null,pool:7,who:null,bank:null};
+const T={pw:'',game:'speed',mode:'practice',deck:'free',view:'',data:null,offset:0,timer:null,pool:7,who:null,bank:null};
 try{T.pw=sessionStorage.getItem('dobble_pw')||''}catch(e){}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 
@@ -235,13 +244,16 @@ if(T.pw){$('pw').value=T.pw;login()}
 
 document.querySelectorAll('#games .g').forEach(b=>b.onclick=()=>{T.game=b.dataset.g;document.querySelectorAll('#games .g').forEach(x=>x.classList.toggle('on',x===b));setGame()});
 document.querySelectorAll('#deckSeg .btn').forEach(b=>b.onclick=()=>{T.deck=b.dataset.k;document.querySelectorAll('#deckSeg .btn').forEach(x=>x.classList.toggle('on',x===b))});
-function setGame(){const real=T.game==='real';$('modeBadge').textContent=real?'실전':'연습';$('modeBadge').className='badge '+(real?'real':'prac');$('modeNote').textContent=GNOTE[T.game];$('mins').value=GMIN[T.game];$('deckRow').hidden=T.game!=='speed'}
+function setGame(){const two=T.game==='real';if(!two)T.mode='practice';
+ document.querySelectorAll('#modeSeg button').forEach(b=>{b.classList.toggle('on',b.dataset.m===T.mode);b.disabled=b.dataset.m==='real'&&!two});
+ const k=two?'real_'+T.mode:T.game;$('modeNote').textContent=GNOTE[k];$('mins').value=GMIN[k];$('deckRow').hidden=T.game!=='speed'}
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{if(b.disabled)return;T.mode=b.dataset.m;setGame()});
 document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{$('mins').value=Math.max(1,Math.min(60,(+$('mins').value||5)+(+b.dataset.d)))});
 setGame();
 
 async function ctl(action,opt){$('msg').textContent='';
  try{await call('api_t_control',T.pw,action,opt||{});T.view='';T.who=null;await refresh()}catch(e){$('msg').textContent=errText(e)}}
-$('startBtn').onclick=()=>ctl('start',{game:T.game,minutes:+$('mins').value,deck:T.deck});
+$('startBtn').onclick=()=>ctl('start',{game:T.game,mode:T.mode,minutes:+$('mins').value,deck:T.deck});
 $('pauseBtn').onclick=()=>ctl(T.data&&T.data.state.status==='paused'?'resume':'pause');
 $('addBtn').onclick=()=>ctl('addtime',{minutes:1});
 function confirmIn(wrapId,text,yes){const w=$(wrapId),old=w.innerHTML;
@@ -314,10 +326,10 @@ function drawBuild(b){
 }
 function drawTable(d,rd){
  if($('tbl').querySelector('.confirm'))return;
- const g=rd?rd.game:null,real=g==='real';
+ const g=rd?rd.game:null,prac=g==='real'&&rd.mode==='practice',real=g==='real'&&!prac;
  $('tblTitle').textContent=rd?(real||g==='speed'?'실시간 순위':'학생 현황')+' · '+rd.label:'학생 현황';
  const pools=T.bank?T.bank.build.pools:[6,7,9];
- const cols=real?['순위','이름','점수','성공','도착','힌트','지금 하는 일','']:g==='build'?['','이름'].concat(pools.map(p=>'그림 '+p+'개'),['반 최고(처음)','지금 하는 일','']):g==='speed'?['순위','이름','찾은 개수','그림 3개','그림 4개','그림 8개','지금 하는 일','']:['','이름','지금 하는 일',''];
+ const cols=real?['순위','이름','점수','성공','도착','힌트','지금 하는 일','']:g==='build'?['','이름'].concat(pools.map(p=>'그림 '+p+'개'),['반 최고(처음)','지금 하는 일','']):g==='speed'?['순위','이름','찾은 개수','그림 3개','그림 4개','그림 8개','지금 하는 일','']:prac?['','이름','성공'].concat(Array.from({length:d.puzzleCount},(_,k)=>'연습 '+(k+1)),['힌트','지금 하는 일','']):['','이름','지금 하는 일',''];
  let h='<tr>'+cols.map(c=>`<th>${c}</th>`).join('')+'</tr>';
  if(!d.rows.length)h+=`<tr><td colspan="${cols.length}" class="empty">아직 입장한 학생이 없어요.</td></tr>`;
  let rank=0,prev=null;
@@ -327,6 +339,7 @@ function drawTable(d,rd){
   const kick=`<td class="hide-big"><button class="x" title="내보내기" data-k="${esc(x.name)}">✕</button></td>`;
   const nn=v=>`<td class="n${v?'':' dim'}">${v||0}</td>`;
   if(real)h+=`<tr><td><span class="rk ${x.score>0&&rank<=3?'r'+rank:''}">${rank}</span></td>${nm}<td class="n" style="color:var(--acc);font-size:18px">${x.score}</td><td class="n">${x.solved}/${d.puzzleCount}</td><td class="n">${(x.reach||0)+1}번</td><td class="n">${x.hints||0}</td>${act}${kick}</tr>`;
+  else if(prac)h+=`<tr><td></td>${nm}<td class="n">${x.solved}/${d.puzzleCount}</td>${Array.from({length:d.puzzleCount},(_,k)=>`<td class="n">${x.done&&x.done[k]?'<span class="ok-mark">✓</span>':'<span style="color:#cfc6b8">·</span>'}</td>`).join('')}<td class="n">${x.hints||0}</td>${act}${kick}</tr>`;
   else if(g==='speed')h+=`<tr><td><span class="rk ${x.solved>0&&rank<=3?'r'+rank:''}">${rank}</span></td>${nm}<td class="n" style="color:var(--acc);font-size:18px">${x.solved}</td>${nn(x.sp.d3)}${nn(x.sp.d4)}${nn(x.sp.d8)}${act}${kick}</tr>`;
   else if(g==='build'){const fs=d.build?pools.filter(p=>d.build.pools[p].first===x.name&&x.bb[p]===d.build.pools[p].best):[];
    h+=`<tr><td></td>${nm}${pools.map(p=>nn(x.bb[p]?x.bb[p]+'장':0)).join('')}<td class="n">${fs.length?'🟡 '+fs.map(p=>p+'개').join('·'):''}</td>${act}${kick}</tr>`}
