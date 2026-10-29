@@ -51,7 +51,7 @@ input.name{width:100%;font-size:22px;padding:12px 14px;border:2.5px solid var(--
 .res span{font-size:12px;color:var(--sub)}
 /* 게임 공통 */
 .tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin}
-.tabs .btn{flex:0 0 auto;padding:7px 12px;font-size:14px;border-width:2px}
+.tabs .btn{flex:0 0 auto;padding:7px 10px;font-size:14px;border-width:2px}
 .nums{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin}
 .num{flex:0 0 auto;min-width:40px;height:40px;border-radius:12px;border:2px solid var(--line);background:#fff;font:400 18px/1 var(--display);color:var(--ink);cursor:pointer;padding:0 6px}
 .num.seen{border-color:#e08a00;background:#fff4e0}
@@ -153,7 +153,7 @@ input.name{width:100%;font-size:22px;padding:12px 14px;border:2.5px solid var(--
    <div class="big" id="waitTitle">선생님이 게임을 시작하면 열려요</div>
    <p class="note" id="waitSub">화면을 켜 둔 채로 기다려요.</p>
    <div id="lastRes" hidden>
-    <div class="res"><div><b id="rScore">0</b><span>점수</span></div><div><b id="rSolved">0</b><span>성공한 문제</span></div><div><b id="rRank">-</b><span>순위</span></div></div>
+    <div class="res"><div><b id="rScore">0</b><span id="rScoreL">점수</span></div><div><b id="rSolved">0</b><span id="rSolvedL">성공한 문제</span></div><div><b id="rRank">-</b><span>순위</span></div></div>
    </div>
   </div>
   <div class="howto"><div><b>👀</b>두 카드에서<br>같은 그림 찾기</div><div><b>🃏</b>미니 도블<br>만들기</div><div><b>❓</b>빠진 카드<br>찾기</div></div>
@@ -247,7 +247,9 @@ async function apply(r){
 }
 function waitScreen(r){
  show('wait');A.activity='대기';const s=r.state;
- if(s.status==='ended'&&s.mode==='real'&&r.me){$('lastRes').hidden=false;$('waitTitle').textContent='지난 게임 결과';$('rScore').textContent=r.me.score;$('rSolved').textContent=r.me.solved;$('rRank').textContent=r.rank?r.rank+'등':'-';$('waitSub').textContent='다음 활동을 기다려요.'}
+ if(s.status==='ended'&&s.mode==='real'&&r.me){const sp=s.game==='speed';$('lastRes').hidden=false;$('waitTitle').textContent='지난 게임 결과';
+  $('rScore').textContent=sp?r.me.solved:r.me.score;$('rScoreL').textContent=sp?'찾은 개수':'점수';$('rSolved').textContent=sp?r.players:r.me.solved;$('rSolvedL').textContent=sp?'참가한 친구':'성공한 문제';
+  $('rRank').textContent=r.rank?r.rank+'등':'-';$('waitSub').textContent=sp?'순위는 선생님 화면에서 발표해요.':'다음 활동을 기다려요.'}
  else if(s.status==='ended'&&s.roundId){$('lastRes').hidden=true;$('waitTitle').textContent='활동 끝!';$('waitSub').textContent='수고했어요. 다음 활동을 기다려요.'}
  else{$('lastRes').hidden=true;$('waitTitle').textContent='선생님이 게임을 시작하면 열려요';$('waitSub').textContent='화면을 켜 둔 채로 기다려요.'}
 }
@@ -272,7 +274,8 @@ const canPlay=()=>A.state.status==='running';
 /* ═════════ 라운드 시작 ═════════ */
 async function startRound(s){
  A.round=s.roundId;A.mode=s.mode;A.game=s.game;A.zeroed=false;A.real={cur:0,saved:{},seen:{}};R_=null;
- A.sp.count=0;A.sp.streak=0;A.sp.queue=[];A.sp.view='speed';A.sp.sel=[];A.sp.mark=null;
+ A.sp.count=0;A.sp.streak=0;A.sp.queue=[];A.sp.view='speed';A.sp.sel=[];A.sp.mark=null;A.sp.pair=null;
+ if(s.game==='speed'&&s.mode==='real')A.sp.count=(A.me&&A.me.solved)||0;   // 실전: 다시 들어와도 이어서
  A.bd.cards={};A.bd.best={};A.bd.stuck={};A.bd.cur=[];A.bd.sel=null;A.cls={};
  if(s.game==='build'){try{const ms=await call('api_mystate',A.name,A.token);if(ms&&ms.build)Object.keys(ms.build).forEach(p=>{A.bd.cards[p]=ms.build[p].cards.map(c=>c.slice());A.bd.best[p]=ms.build[p].n});
   if(ms&&ms.stuck)Object.keys(ms.stuck).forEach(p=>{A.bd.stuck[p]=ms.stuck[p].map(x=>x.n)})}catch(e){}}
@@ -290,6 +293,7 @@ async function loadHistory(){
  const box=$('hist');if(!h||!h.length){box.hidden=true;return}
  const tm=t=>{const d=new Date(t);return d.getHours()+':'+String(d.getMinutes()).padStart(2,'0')};
  box.innerHTML='<h3>내 기록</h3>'+h.map(x=>{let b='';
+  if(x.speedReal)b+=`<div class="hl">⚡ 실전에서 같은 그림 <em>${x.speedReal.n}번</em> 찾음</div>`;
   if(x.speed){const s=x.speed,t=(s.d3||0)+(s.d4||0)+(s.d8||0);b+=`<div class="hl">⚡ 같은 그림 <em>${t}번</em> 찾음</div><div class="chips">${['d3','d4','d8'].filter(d=>s[d]).map(d=>`<span>${DN[d]} ${s[d]}번</span>`).join('')}</div>`}
   if(x.build)b+=`<div class="hl">🃏 가장 많이 만든 카드${x.first&&x.first.length?` · 반 최고 기록 <em>${x.first.map(p=>'그림 '+p+'개').join(', ')}</em>`:''}</div><div class="chips">${Object.keys(x.build).map(p=>`<span>그림 ${p}개 → ${x.build[p]}장</span>`).join('')}</div>`;
   if(x.prac)b+=`<div class="hl">✏️ 연습 성공 <em>${x.prac.solved}/${x.prac.total}</em>${x.prac.hints?` · 힌트 ${x.prac.hints}번`:''}</div>`;
@@ -343,9 +347,13 @@ function cardHtml(pics,size,o){
 function W(){return Math.min(window.innerWidth-24,536)}
 
 /* ═════════ 1) 스피드 체험 ═════════ */
+/* 스피드 실전: 모두 같은 순서의 카드 짝 (서버 speedPair_와 같은 계산) */
+const isSpeedReal=()=>A.game==='speed'&&A.mode==='real';
+function speedPair(seed,i){const R=rng((seed+Math.imul(i+1,2654435761))|0),n=A.bank.decks.d8.n;const a=Math.floor(R()*n);let b=Math.floor(R()*(n-1));if(b>=a)b++;return[a,b]}
 function openSpeed(){
  const fixed=A.state.deck&&A.state.deck!=='free';if(fixed)A.sp.deck=A.state.deck;
- $('deckTabs').hidden=fixed;$('viewTabs').hidden=false;
+ if(isSpeedReal())A.sp.view='speed';
+ $('deckTabs').hidden=fixed;$('viewTabs').hidden=isSpeedReal();
  $('deckTabs').innerHTML=['d3','d4','d8'].map(d=>`<button class="btn${d===A.sp.deck?' on':''}" data-d="${d}">${DN[d]}</button>`).join('');
  $('deckTabs').querySelectorAll('.btn').forEach(b=>b.onclick=()=>{A.sp.deck=b.dataset.d;A.sp.sel=[];A.sp.mark=null;A.sp.pair=null;openSpeed()});
  $('viewTabs').innerHTML=`<button class="btn${A.sp.view==='speed'?' on':''}" data-v="speed">⚡ 같은 그림 찾기</button><button class="btn${A.sp.view==='all'?' on':''}" data-v="all">🃏 모든 카드 보기</button>`;
@@ -353,15 +361,18 @@ function openSpeed(){
  if(!A.sp.pair||A.sp.pair.d!==A.sp.deck)newPair();
  drawSpeed();
 }
-function newPair(){const n=A.bank.decks[A.sp.deck].n;let a=Math.floor(Math.random()*n),b;do{b=Math.floor(Math.random()*n)}while(b===a);
- A.sp.pair={d:A.sp.deck,a,b,t:Date.now(),ra:Math.floor(Math.random()*360),rb:Math.floor(Math.random()*360)}}   // 볼 때마다 카드 전체도 돌림
+function newPair(){const n=A.bank.decks[A.sp.deck].n;let a,b,idx=null;
+ if(isSpeedReal()){idx=A.sp.count;[a,b]=speedPair(A.state.seed,idx)}
+ else{a=Math.floor(Math.random()*n);do{b=Math.floor(Math.random()*n)}while(b===a)}
+ A.sp.pair={d:A.sp.deck,a,b,idx,t:Date.now(),ra:Math.floor(Math.random()*360),rb:Math.floor(Math.random()*360)}}   // 볼 때마다 카드 전체도 돌림
 const deckCard=(d,i)=>A.bank.decks[d].cards[i].map(s=>A.bank.decks[d].pics[s]);
 function common(d,a,b){const B=deckCard(d,b);return deckCard(d,a).find(x=>B.indexOf(x)>=0)}
 function drawSpeed(){
  const D=A.bank.decks[A.sp.deck];
  if(A.sp.view==='all')return drawAll();
- $('pTitle').textContent=DN[A.sp.deck]+' 카드';$('pLead').innerHTML='두 카드에 <b>똑같이 있는 그림</b>을 찾아 톡! 어느 카드에서 눌러도 돼요.';
- A.activity='스피드: '+DN[A.sp.deck]+' (찾은 '+A.sp.count+')';
+ $('pTitle').textContent=isSpeedReal()?'⚡ 스피드 실전 · 그림 8개':DN[A.sp.deck]+' 카드';
+ $('pLead').innerHTML=isSpeedReal()?'모두 <b>같은 카드 짝</b>을 같은 순서로 풀어요. 시간 안에 <b>가장 많이</b> 찾은 사람이 1등!':'두 카드에 <b>똑같이 있는 그림</b>을 찾아 톡! 어느 카드에서 눌러도 돼요.';
+ A.activity=(isSpeedReal()?'스피드 실전':'스피드: '+DN[A.sp.deck])+' (찾은 '+A.sp.count+')';
  const P=A.sp.pair,sz=Math.floor(Math.min(W()-20,(window.innerHeight-(A.state.deck&&A.state.deck!=='free'?290:340))/2,340));
  $('stage').innerHTML=`<div class="duo" id="duo">${cardHtml(deckCard(P.d,P.a),Math.max(170,sz),{id:'a',lay:scatter(P.d+':'+P.a,D.k),rot:P.ra})}<span class="vs">같은 그림은 딱 하나!</span>${cardHtml(deckCard(P.d,P.b),Math.max(170,sz),{id:'b',lay:scatter(P.d+':'+P.b,D.k),rot:P.rb})}</div>`;
  // 카드 안 아무 곳을 눌러도 가장 가까운 그림이 눌려요(작은 그림도 누르기 쉽게)
@@ -369,12 +380,12 @@ function drawSpeed(){
   if(e.clientX||e.clientY){let best=1e9;ps.forEach(q=>{const b=q.getBoundingClientRect(),dd=Math.hypot(b.left+b.width/2-e.clientX,b.top+b.height/2-e.clientY);if(dd<best){best=dd;el=q}})}
   if(el)speedTap(+el.dataset.p,el)});
  $('ctrl').innerHTML=`<div class="stat3" style="grid-column:1/-1"><div><b id="spN">${A.sp.count}</b><span>찾은 개수</span></div><div><b id="spS">${A.sp.streak}</b><span>연속</span></div><div><b>${D.n}</b><span>이 덱의 카드 수</span></div></div>`;
- $('gnote').textContent='틀리면 1초 동안 잠겨요. 찾은 개수가 선생님 화면에 모여요.';
+ $('gnote').textContent=isSpeedReal()?'틀리면 1초 동안 잠겨요(감점은 없어요). 같은 개수면 그 개수에 먼저 도달한 사람이 앞이에요.':'틀리면 1초 동안 잠겨요. 찾은 개수가 선생님 화면에 모여요.';
 }
 async function speedTap(p,el){
  if(A.sp.lock||!canPlay())return;
  const P=A.sp.pair,c=common(P.d,P.a,P.b);
- if(p===c){A.sp.lock=true;A.sp.count++;A.sp.streak++;A.sp.queue.push([P.d,P.a,P.b]);
+ if(p===c){A.sp.lock=true;A.sp.count++;A.sp.streak++;A.sp.queue.push(isSpeedReal()?[P.idx,c,Date.now()+A.offset]:[P.d,P.a,P.b]);
   $('stage').querySelectorAll(`.p[data-p="${c}"]`).forEach(x=>x.classList.add('good'));
   setMsg('딩동! '+PIC(c).e+' '+PIC(c).n,'ok');updTop();$('spN').textContent=A.sp.count;$('spS').textContent=A.sp.streak;
   await sleep(550);A.sp.lock=false;newPair();if(A.game==='speed'&&A.sp.view==='speed'){drawSpeed();setMsg('')}
@@ -411,21 +422,24 @@ function drawAll(){
 /* ═════════ 2) 미니 도블 만들기 ═════════ */
 const BK=()=>A.bank.build;
 const bpic=i=>BK().pics[i];       // 만들기 그림 번호(0..) → 전체 그림 번호
+const kOf=p=>BK().k[p];             // 카드 1장의 그림 수: 그림 6·7·9개 → 3, 13개 → 4 (탐구과제 2)
+const poolLabel=p=>'그림 '+p+'개'+(kOf(p)!==3?'('+kOf(p)+'칸)':'');
+const tabLabel=p=>p+'개'+(kOf(p)!==3?'('+kOf(p)+'칸)':'');   // 탭은 짧게: 6개 · 13개(4칸) (제목에 '그림'이 있어요)
 function openBuild(pool){
  A.bd.pool=pool;A.bd.cur=[];A.bd.sel=null;A.bd.cards[pool]=A.bd.cards[pool]||[];
  $('poolTabs').hidden=false;
- $('poolTabs').innerHTML=BK().pools.map(p=>`<button class="btn${p===pool?' on':''}" data-p="${p}">그림 ${p}개${A.bd.best[p]?' · '+A.bd.best[p]+'장':''}</button>`).join('');
+ $('poolTabs').innerHTML=BK().pools.map(p=>`<button class="btn${p===pool?' on':''}" data-p="${p}">${tabLabel(p)}${A.bd.best[p]?' · '+A.bd.best[p]+'장':''}</button>`).join('');
  $('poolTabs').querySelectorAll('.btn').forEach(b=>b.onclick=()=>openBuild(+b.dataset.p));
- $('pTitle').textContent='미니 도블 만들기 · 그림 '+pool+'개';
- $('pLead').innerHTML='카드 1장에 그림 <b>3개</b>. 어느 두 카드에도 <b>같은 그림이 꼭 하나</b>! 카드를 몇 장까지 만들 수 있을까요?';
- setMsg('그림 3개를 골라 카드를 만들어요.');drawBuild();
+ $('pTitle').textContent='미니 도블 만들기 · 그림 '+pool+'개'+(kOf(pool)!==3?' · 카드에 '+kOf(pool)+'개':'');
+ $('pLead').innerHTML='카드 1장에 그림 <b>'+kOf(pool)+'개</b>. 어느 두 카드에도 <b>같은 그림이 꼭 하나</b>! 카드를 몇 장까지 만들 수 있을까요?';
+ setMsg('그림 '+kOf(pool)+'개를 골라 카드를 만들어요.');drawBuild();
 }
 function useCount(){const n={};(A.bd.cards[A.bd.pool]||[]).forEach(c=>c.forEach(x=>n[x]=(n[x]||0)+1));return n}
 function drawBuild(){
  const pool=A.bd.pool,cards=A.bd.cards[pool],cur=A.bd.cur,cnt=useCount(),w=W();
  A.activity='만들기: 그림 '+pool+'개 (카드 '+cards.length+'장)';
  const big=Math.min(150,Math.floor(w*.38));
- let h=`<div class="mk">${cardHtml([0,1,2].map(j=>cur[j]===undefined?null:bpic(cur[j])),big,{id:'new',cls:'blank',slotCls:(j,p)=>p!==null?' fill':(j===cur.length?' next':'')})}<div style="text-align:left;font-size:14px;color:var(--sub);line-height:1.6;max-width:150px">새 카드<br><b style="color:var(--ink)">${cur.length}/3</b> 골랐어요<br>그림을 다시 누르면 빠져요</div></div>`;
+ let h=`<div class="mk">${cardHtml(Array.from({length:kOf(pool)},(_,j)=>cur[j]===undefined?null:bpic(cur[j])),big,{id:'new',cls:'blank',slotCls:(j,p)=>p!==null?' fill':(j===cur.length?' next':'')})}<div style="text-align:left;font-size:14px;color:var(--sub);line-height:1.6;max-width:150px">새 카드<br><b style="color:var(--ink)">${cur.length}/${kOf(pool)}</b> 골랐어요<br>그림을 다시 누르면 빠져요</div></div>`;
  h+=`<div class="pal" id="bPal">${Array.from({length:pool},(_,i)=>`<button class="pb${cur.indexOf(i)>=0?' on':''}" data-i="${i}" aria-label="${PIC(bpic(i)).n}">${PIC(bpic(i)).e}${cnt[i]?`<small>${cnt[i]}</small>`:''}</button>`).join('')}</div>`;
  h+=`<div class="stat3"><div><b>${cards.length}</b><span>지금 카드</span></div><div><b>${A.bd.best[pool]||0}</b><span>내 최고</span></div><div><b id="clsBest">${A.cls[pool]||0}</b><span>우리 반 최고</span></div></div>`;
  if((A.bd.stuck[pool]||[]).length)h+=`<p class="note" style="margin:2px 0 0">🧱 내가 막힌 기록: ${A.bd.stuck[pool].map(x=>x+'장').join(', ')}</p>`;
@@ -435,11 +449,12 @@ function drawBuild(){
  if(!cards.length)h+='<span class="note">아직 카드가 없어요.</span>';
  $('stage').innerHTML=h+'</div>';
  $('bPal').querySelectorAll('.pb').forEach(b=>b.onclick=()=>{const i=+b.dataset.i,at=A.bd.cur.indexOf(i);A.bd.bad=null;
-  if(at>=0)A.bd.cur.splice(at,1);else if(A.bd.cur.length<3)A.bd.cur.push(i);else{setMsg('그림은 3개까지예요. 뺄 그림을 다시 눌러요.','bad');return}
-  setMsg(A.bd.cur.length===3?'[카드 추가]를 눌러요.':'그림 3개를 골라 카드를 만들어요.');drawBuild()});
+  const K=kOf(A.bd.pool);
+  if(at>=0)A.bd.cur.splice(at,1);else if(A.bd.cur.length<K)A.bd.cur.push(i);else{setMsg('그림은 '+K+'개까지예요. 뺄 그림을 다시 눌러요.','bad');return}
+  setMsg(A.bd.cur.length===K?'[카드 추가]를 눌러요.':'그림 '+K+'개를 골라 카드를 만들어요.');drawBuild()});
  $('stage').querySelectorAll('.dc[data-c="new"] .p').forEach(b=>b.onclick=()=>{const j=+b.dataset.i;if(A.bd.cur[j]!==undefined){A.bd.cur.splice(j,1);drawBuild()}});
  $('bList').querySelectorAll('.dc').forEach(c=>c.onclick=()=>{const i=+c.dataset.c;A.bd.sel=A.bd.sel===i?null:i;A.bd.bad=null;drawBuild();if(A.bd.sel!==null)setMsg((i+1)+'번 카드를 골랐어요. [이 카드 빼기]를 누르면 빠져요.')});
- $('ctrl').innerHTML=`<button class="btn pri" id="bAdd"${cur.length===3?'':' disabled'}>＋ 카드 추가</button><button class="btn" id="bClr">새 카드 비우기</button>`+
+ $('ctrl').innerHTML=`<button class="btn pri" id="bAdd"${cur.length===kOf(pool)?'':' disabled'}>＋ 카드 추가</button><button class="btn" id="bClr">새 카드 비우기</button>`+
   (A.bd.sel!==null?`<button class="btn wide" id="bDel">${A.bd.sel+1}번 카드 빼기</button>`:'')+
   `<button class="btn wide" id="bStuck"${cards.length?'':' disabled'}>🤔 더 만들 수 없어요?<span class="hintc">확인만 해요 · 눌러도 카드는 그대로, 계속 만들 수 있어요</span></button>`+
   `<button class="btn wide" id="bAll">카드 모두 지우기</button>`;
@@ -451,7 +466,8 @@ function drawBuild(){
 }
 function drawBuildStats(){const e=$('clsBest');if(e)e.textContent=A.cls[A.bd.pool]||0}
 /* 지금 카드들에 규칙에 맞게 더 붙일 수 있는 카드가 있는지 모든 경우를 따져 봐요 (어떤 카드인지는 알려 주지 않아요) */
-function canExtend(pool,cards){for(let a=0;a<pool;a++)for(let b=a+1;b<pool;b++)for(let c=b+1;c<pool;c++){const t=[a,b,c];if(cards.every(x=>t.filter(v=>x.indexOf(v)>=0).length===1))return true}return false}
+function canExtend(pool,cards){const k=kOf(pool),t=[];   // 그림 pool개 중 k개 고르기를 모두 따져 봐요(13개·4칸이면 715가지)
+ const rec=st=>{if(t.length===k)return cards.every(x=>t.filter(v=>x.indexOf(v)>=0).length===1);for(let v=st;v<pool;v++){t.push(v);if(rec(v+1))return true;t.pop()}return false};return rec(0)}
 async function checkStuck(){
  if(A.busy)return;const pool=A.bd.pool,cards=A.bd.cards[pool];if(!cards.length)return;
  if(!canPlay()){setMsg('지금은 확인할 수 없어요.','bad');return}
@@ -463,10 +479,10 @@ async function checkStuck(){
  catch(e){setMsg(errText(e),'bad')}finally{A.busy=false}
 }
 async function addCard(){
- if(A.busy||A.bd.cur.length!==3)return;if(!canPlay()){setMsg('지금은 만들 수 없어요.','bad');return}
+ if(A.busy||A.bd.cur.length!==kOf(A.bd.pool))return;if(!canPlay()){setMsg('지금은 만들 수 없어요.','bad');return}
  const pool=A.bd.pool,cards=A.bd.cards[pool],nc=A.bd.cur.slice().sort((a,b)=>a-b);
  for(let i=0;i<cards.length;i++){const same=cards[i].filter(x=>nc.indexOf(x)>=0).length;
-  if(same!==1){A.bd.bad=i;drawBuild();setMsg(same===0?(i+1)+'번 카드와 같은 그림이 없어요. 꼭 1개 있어야 해요.':(same===3?(i+1)+'번 카드와 똑같은 카드예요.':(i+1)+'번 카드와 같은 그림이 '+same+'개예요. 꼭 1개여야 해요.'),'bad');return}}
+  if(same!==1){A.bd.bad=i;drawBuild();setMsg(same===0?(i+1)+'번 카드와 같은 그림이 없어요. 꼭 1개 있어야 해요.':(same===nc.length?(i+1)+'번 카드와 똑같은 카드예요.':(i+1)+'번 카드와 같은 그림이 '+same+'개예요. 꼭 1개여야 해요.'),'bad');return}}
  cards.push(nc);A.bd.cur=[];A.bd.sel=null;A.bd.bad=null;
  const n=cards.length,isBest=n>(A.bd.best[pool]||0);if(isBest)A.bd.best[pool]=n;   // '내 최고'가 바로 보이게 먼저 바꿔요
  setMsg('카드 '+n+'장! 한 장 더 만들 수 있을까요?','ok');drawBuild();
@@ -476,7 +492,7 @@ async function addCard(){
    openBuildTabsOnly();drawBuildStats()}
   catch(e){setMsg(errText(e),'bad')}finally{A.busy=false}}
 }
-function openBuildTabsOnly(){$('poolTabs').querySelectorAll('.btn').forEach(b=>{const p=+b.dataset.p;b.textContent='그림 '+p+'개'+(A.bd.best[p]?' · '+A.bd.best[p]+'장':'')})}
+function openBuildTabsOnly(){$('poolTabs').querySelectorAll('.btn').forEach(b=>{const p=+b.dataset.p;b.textContent=tabLabel(p)+(A.bd.best[p]?' · '+A.bd.best[p]+'장':'')})}
 
 /* ═════════ 3) 빠진 카드 찾기 (연습 3문제 · 실전 8문제) ═════════
    연습: 세 문제가 모두 열려 있고, 점수가 없고, 힌트도 감점 없이 마음껏. 실전: 도착한 번호까지만, 10점, 힌트 2번까지 −3점 */
